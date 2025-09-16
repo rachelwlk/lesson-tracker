@@ -117,4 +117,19 @@ app.get('/api/export.xlsx', async (_req, res) => {
 })
 
 const PORT = process.env.PORT || 4000
+// 更新學生資料（name / phone 任意其一）
+app.patch('/api/students/:id', async (req, res) => {
+  const id = Number(req.params.id)
+  const { name, phone } = req.body || {}
+
+  const s = db.data.students.find(x => x.id === id)
+  if (!s) return res.status(404).json({ error: 'student not found' })
+
+  if (typeof name === 'string' && name.trim()) s.name = name.trim()
+  if (phone === null || typeof phone === 'string') s.phone = phone ?? null
+
+  await db.write()
+  res.json(s)
+})
+
 app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`))
