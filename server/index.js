@@ -5,6 +5,8 @@ import { Low } from 'lowdb'
 import { JSONFile } from 'lowdb/node'
 import path from 'node:path'
 import fs from 'node:fs'
+import XLSX from 'xlsx'
+
 
 dotenv.config()
 
@@ -78,19 +80,41 @@ app.get('/api/stats/:studentId', (req,res)=>{
   res.json({ student, purchased, attended, remaining: purchased + attended })
 })
 
-app.get('/api/dashboard', (_req,res)=>{
-  const rows = db.data.students.map(s => {
-    const purchased = sumPurchases(s.id)
-    const attended  = sumCheckins(s.id)
-    const remaining = purchased + attended
-    return {
-      id: s.id, name: s.name, phone: s.phone ?? null,
-      purchased, attended, remaining,
-      status: remaining <= 0 ? '已用完' : (remaining <= 2 ? '快用完' : '正常')
-    }
-  }).sort((a,b)=>a.name.localeCompare(b.name))
+app.get('/api/dashboard', (_req, res) => {
+  const rows = db.data.students
+    .map(s => {
+      const purchased = sumPurchases(s.id)
+      const attended  = sumCheckins(s.id)
+      const remaining = purchased + attended
+      return {
+        id: s.id,
+        name: s.name,
+        phone: s.phone ?? null,
+        purchased,
+        attended,
+        remaining,
+        status: remaining <= 0 ? '已用完' : (remaining <= 2 ? '快用完' : '正常')
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
   res.json(rows)
 })
 
+// ⭐ 匯出 Excel（students / purchases / checkins）
+app.get('/api/export.xlsx', async (_req, res) => {
+  await db.read()
+  const { students = [], purchases = [], checkins = [] } = db.data || {}
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(students),  'students')
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(purchases), 'purchases')
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(checkins),  'checkins')
+
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+  res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  res.setHeader('Content-Disposition','attachment; filename="lesson-data.xlsx"')
+  res.send(buf)
+})
+
 const PORT = process.env.PORT || 4000
-app.listen(PORT, ()=>console.log(`API listening on http://localhost:${PORT}`))
+app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`))
